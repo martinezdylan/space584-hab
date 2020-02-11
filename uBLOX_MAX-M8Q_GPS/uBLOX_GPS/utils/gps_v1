@@ -1,0 +1,230 @@
+#!/usr/bin/python
+# from: http://stackoverflow.com/questions/28867795/reading-i2c-data-from-gps
+import time
+import json
+import logging 
+import smbus
+
+class i2c:
+   def __init__(self, device, bus):
+      self.fr = io.open("/dev/i2c-"+str(bus), "r+b", buffering=0)
+      self.fw = io.open("/dev/i2c-"+str(bus), "w+b", buffering=0)
+      # set device address
+      fcntl.ioctl(self.fr, I2C_SLAVE, device)
+      fcntl.ioctl(self.fw, I2C_SLAVE, device)
+
+   def write(self, bytes):
+      self.fw.write(bytes)
+
+   def read(self, bytes):
+      return self.fr.read(bytes)
+
+   def close(self):
+      self.fw.close()
+      self.fr.close()
+
+
+BUS = None
+address = 0x42
+gpsReadInterval = 0.1
+LOG = logging.getLogger()
+lastFixTime = 0
+
+# GUIDE
+# http://ava.upuaut.net/?p=768
+# https://www.raspberrypi.org/forums/viewtopic.php?f=44&t=113279
+
+GPSDAT = {
+    'fixTime': None,
+    'lat': None,
+    'latDir': None,
+    'lon': None,
+    'lonDir': None,
+    'alt': None,
+}
+GGADAT = {
+    'strType': None,
+    'fixTime': None,
+    'lat': None,
+    'latDir': None,
+    'lon': None,
+    'lonDir': None,
+    'fixQual': None,
+    'numSat': None,
+    'horDil': None,
+    'alt': None,
+    'altUnit': None,
+    'galt': None,
+    'galtUnit': None,
+    'DPGS_updt': None,
+    'DPGS_ID': None
+}
+RMCDAT = {
+    'strType': None,
+    'fixTime': None,
+    'status': None,
+    'lat': None,
+    'latDir': None,
+    'lon': None,
+    'lonDir': None,
+    'groundSpeed': None,
+    'groundCourse': None,
+    'date':None,
+    'mode':None
+}
+
+def SendUBX(msg):
+    for i in msg:
+        BUS.write_byte(address, i)
+
+def setFlightMode():
+    setNav = [0xB5, 0x62, 0x06, 0x24, 0x24, 0x00, 0xFF, 0xFF, 0x06, 
+              0x03, 0x00, 0x00, 0x00, 0x00, 0x10, 0x27, 0x00, 0x00, 
+              0x05, 0x00, 0xFA, 0x00, 0xFA, 0x00, 0x64, 0x00, 0x2C, 
+              0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0xDC]
+    SendUBX(setNav)
+
+def disableGSA():
+    cmnd = [0xB5, 0x62, 0x06, 0x01, 0x08, 0x00, 0xF0, 0x02, 
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x32 ]
+    SendUBX(cmnd)
+
+def disableGSV():
+    cmnd = [ 0xB5, 0x62, 0x06, 0x01, 0x08, 0x00, 0xF0, 0x03, 
+             0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x03, 0x39]
+    SendUBX(cmnd)
+
+def dumpFile(filename):
+    global lastFixTime
+    longitude = GPSDAT["lon"]
+    latitude = GPSDAT["lat"]
+
+    #Change latitue and longitude to decimal degrees format
+    degrees_lon = float(longitude[:3])
+    fraction_lon = float(longitude[3:]) / 60
+    degrees_lat = float(latitude[:2])
+    fraction_lat = float(latitude[2:]) / 60
+
+    DD_longitude = degrees_lon + fraction_lon  # longitude (decimal degrees)
+    DD_latitude = degrees_lat + fraction_lat # latitude (decimal degrees)
+
+    timestr = GPSDAT['fixTime'][0:2] + ':' + GPSDAT['fixTime'][2:4]
+    
+    jsondat = {
+      'Lat' : DD_latitude,
+      'Lon' : DD_longitude,
+      'Alt' : GPSDAT["alt"],
+      'fixTime' : timestr
+      }
+    file = open(filename + ".json", "w")
+    file.write(json.dumps(jsondat, indent=2))
+    file.close()
+
+    file = open(filename + ".txt", "w")
+    file.write("Lat %.4f\n" % DD_latitude)
+    file.write("Lon %.4f\n" % DD_longitude)
+    file.write("Alt %s\n" % GPSDAT["alt"])
+    file.close()
+    lastFixTime = time.time()
+
+def connectBus():
+    global BUS
+    BUS = smbus.SMBus(1)
+    # BUS = i2c(address, 1) # device 0x53, bus 0
+
+def parseGNRMC(gpsComponents):
+    for i, k in enumerate(
+                ['strType', 'fixTime', 'status', 'lat', 'latDir',
+                 'lon', 'lonDir', 'groundSpeed', 'groundCourse',
+                 'date','mode']):
+        RMCDAT[k] = gpsComponents[i]
+    for i, k in enumerate(['fixTime', 'lat', 'latDir', 'lon', 'lonDir']):
+        GPSDAT[k] = RMCDAT[k]
+
+def parseGNGGA(gpsComponents):
+    for i, k in enumerate(
+                ['strType', 'fixTime', 
+                'lat', 'latDir', 'lon', 'lonDir',
+                'fixQual', 'numSat', 'horDil', 
+                'alt', 'altUnit', 'galt', 'galtUnit',
+                'DPGS_updt', 'DPGS_ID']):
+        GGADAT[k] = gpsComponents[i]
+    for i, k in enumerate(['fixTime', 'lat', 'latDir', 'lon', 'lonDir', 'alt']): 
+        GPSDAT[k] = GGADAT[k]
+
+def parseGNTXT(gpsComponents):
+    pass
+
+def parseResponse(gpsLine):
+    global lastLocation
+
+    gpsChars = ''.join(chr(c) for c in gpsLine)
+    if "*" not in gpsChars:
+        return False
+
+    gpsStr, chkSum = gpsChars.split('*')    
+    gpsComponents = gpsStr.split(',')
+    gpsStart = gpsComponents[0]
+    chkVal = 0
+    for ch in gpsStr[1:]: # Remove the $
+        chkVal ^= ord(ch)
+    if (chkVal == int(chkSum, 16)):
+        if (gpsStart == "$GNGGA"):
+            parseGNGGA(gpsComponents)
+            print gpsChars
+            print json.dumps(GPSDAT, indent=2)
+            dumpFile("gps")
+        elif (gpsStart == "$GNRMC"):
+            parseGNRMC(gpsComponents)
+            print gpsChars
+            print json.dumps(GPSDAT, indent=2)
+            dumpFile("gps")
+        elif (gpsStart == "$GNTXT"):
+            parseGNTXT(gpsComponents)
+        elif (gpsStart == "$GNGSA"):
+            print("diable GSA")
+            disableGSA()
+        elif (gpsStart == "$GNGSV"):
+            print("disable GSV")
+            disableGSV()
+        else:
+            print(gpsStart)
+
+def readGPS():
+    c = None
+    response = []
+    try:
+        while c not in [ 10, 255, '$']:
+           c = BUS.read_byte(address)
+           if c == '$':
+               responce.append(c)
+
+        while True: # Newline, or bad char.
+            c = BUS.read_byte(address)
+            if c == 255:
+                return False
+            elif c == 10:
+                break
+            else:
+                response.append(c)
+        parseResponse(response)
+    except IOError:
+        time.sleep(0.5)
+        connectBus()
+    except Exception, e:
+        print e
+        LOG.error(e)
+
+
+connectBus()
+setFlightMode()
+while True:
+    readGPS()
+    time.sleep(gpsReadInterval)
+    elapsed = time.time() - lastFixTime
+    if elapsed > 10*60:
+        file = open("gps.txt","w")
+        file.write("No GPS fix\n")
+        file.close()
+        lastFixTime = time.time()

@@ -1,0 +1,14 @@
+syntax: glob
+
+# python
+*.py[cdo]
+
+# c
+*.o
+
+# misc
+a.out
+pisstv/photos/*
+pisstv/.git
+utils/*.png
+utils/*.jpg

@@ -1,0 +1,218 @@
+#!/usr/bin/env python
+import time
+import io
+import fcntl
+import json
+
+# see:
+#    http://stackoverflow.com/questions/28867795/reading-i2c-data-from-gps
+#    http://ava.upuaut.net/?p=768
+#    https://www.raspberrypi.org/forums/viewtopic.php?f=44&t=113279
+#    https://github.com/adafruit/Adafruit_Python_PureIO/blob/master/Adafruit_PureIO/smbus.py
+#    https://www.kernel.org/doc/Documentation/i2c/dev-interface
+
+GPSDAT = {"error":"", "alt":0}
+lastFixTime = time.time()
+
+class ublox_i2c:
+   I2C_SLAVE=0x0703
+   def __init__(self, device=0x42, bus=1):
+      self.fr = io.open("/dev/i2c-"+str(bus), "r+b", buffering=0)
+      self.fw = io.open("/dev/i2c-"+str(bus), "w+b", buffering=0)
+      # set device address
+      fcntl.ioctl(self.fr, self.I2C_SLAVE, device)
+      fcntl.ioctl(self.fw, self.I2C_SLAVE, device)
+
+   def write(self, bytes):
+      try:
+        self.fw.write(bytes)
+      except IOError:
+        pass
+
+   def read(self, bytes=1):
+      return self.fr.read(bytes)
+
+   def read_byte(self):
+      ch =255
+      while ch == 255:
+        try:
+          ch = self.fr.read(1)
+        except IOError:
+          time.sleep(0.1)
+      return ch
+
+   def close(self):
+      self.fw.close()
+      self.fr.close()
+
+def SendUBX(msg):
+    global dev
+    retries = 5
+
+    # Construct the expected ACK packet 
+    ackPacket = [0xB5, 0x62, 0x05, 0x01, 0x02, 0x00, msg[2], msg[3], 0, 0]
+    # Calculate the checksums
+    for x in ackPacket[2:8]:
+      ackPacket[8] = (ackPacket[8] + x ) & 0xff
+      ackPacket[9] = (ackPacket[9] + ackPacket[8]) & 0xff
+    
+    for i in range(retries):
+      print("trying...")
+      success = True
+      # send data
+      data = bytearray(len(msg))
+      data[0:] = msg[0:]   
+      dev.write(data)
+ 
+      # get ack
+      ackrx = []
+      for x in ackPacket:
+        ch = ord(dev.read_byte())
+        ackrx.append(hex(ch))
+        if ch != x:
+          success = False
+      if success:
+        return True
+      print("error %s", ','.join(ackrx))
+      time.sleep(5)
+    return False
+
+def setFlightMode():
+    global GPSDAT
+    setNav = [0xB5, 0x62, 0x06, 0x24, 0x24, 0x00, 0xFF, 0xFF, 0x06, 
+              0x03, 0x00, 0x00, 0x00, 0x00, 0x10, 0x27, 0x00, 0x00, 
+              0x05, 0x00, 0xFA, 0x00, 0xFA, 0x00, 0x64, 0x00, 0x2C, 
+              0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0xDC]
+    print("set flight mode")
+    if not SendUBX(setNav):
+      GPSDAT["error"] = "failed to set flight mode"
+      update_files()
+      print("failed to set flight mode")
+    else:
+      print("success")
+
+def calc_chksum(line):
+    calc_cksum = 0
+    for s in line[1:]: 
+        calc_cksum ^= ord(s)
+    return hex(calc_cksum)
+
+
+def parse_gnrmc(tokens):
+    global GPSDAT
+    RMCDAT = {}
+    for i, k in enumerate(
+                ['strType', 'fixTime', 'status', 'lat', 'latDir',
+                 'lon', 'lonDir', 'groundSpeed', 'groundCourse',
+                 'date','mode']):
+        RMCDAT[k] = tokens[i]
+    if RMCDAT["lat"] == "":
+      return False
+    for i, k in enumerate(['fixTime', 'lat', 'latDir', 'lon', 'lonDir']):
+        GPSDAT[k] = RMCDAT[k]
+    return True
+
+def parse_gngga(tokens):
+    global GPSDAT
+    GGADAT = {}
+    for i, k in enumerate(
+                ['strType', 'fixTime', 
+                'lat', 'latDir', 'lon', 'lonDir',
+                'fixQual', 'numSat', 'horDil', 
+                'alt', 'altUnit', 'galt', 'galtUnit',
+                'DPGS_updt', 'DPGS_ID']):
+        GGADAT[k] = tokens[i]
+    if GGADAT["lat"] == "":
+      return False
+    for i, k in enumerate(['fixTime', 'lat', 'latDir', 'lon', 'lonDir', 'alt']): 
+        GPSDAT[k] = GGADAT[k]
+    return True
+
+def parse_nmea(line):
+    if line.count('*') != 1:
+        return 
+    msg, chksum = line.split('*')
+    calc = calc_chksum(msg)
+    if calc == "0x"+chksum:
+      tokens = msg.split(',')
+      cmnd = tokens[0][1:]
+      if cmnd == "GNGGA":
+        if parse_gngga(tokens):
+          update_files()
+      elif cmnd == "GNRMC":
+        if parse_gnrmc(tokens):
+          update_files()
+
+def update_files(filename="gps"):
+    global lastFixTime
+    print json.dumps(GPSDAT, indent=2)
+
+    elapsed = time.time() - lastFixTime
+    if elapsed > 10*60:
+        file = open(filename + ".txt","w")
+        file.write("No GPS fix\n")
+        file.close()
+        lastFixTime = time.time()
+        return
+ 
+    longitude = GPSDAT["lon"]
+    latitude = GPSDAT["lat"]
+
+    #Change latitue and longitude to decimal degrees format
+    degrees_lon = float(longitude[:3])
+    fraction_lon = float(longitude[3:]) / 60
+    degrees_lat = float(latitude[:2])
+    fraction_lat = float(latitude[2:]) / 60
+
+    DD_longitude = degrees_lon + fraction_lon  # longitude (decimal degrees)
+    DD_latitude = degrees_lat + fraction_lat # latitude (decimal degrees)
+
+    timestr = GPSDAT['fixTime'][0:2] + ':' + GPSDAT['fixTime'][2:4]
+    
+    jsondat = {
+      'Lat' : DD_latitude,
+      'Lon' : DD_longitude,
+      'Alt' : GPSDAT["alt"],
+      'fixTime' : timestr,
+      'Error' : GPSDAT["error"] 
+     }
+    file = open(filename + ".json", "w")
+    file.write(json.dumps(jsondat, indent=2))
+    file.close()
+
+    file = open(filename + ".txt", "w")
+    file.write("Lat %.4f\n" % DD_latitude)
+    file.write("Lon %.4f\n" % DD_longitude)
+    file.write("Alt %s\n" % GPSDAT["alt"])
+    file.close()
+    lastFixTime = time.time()
+
+if __name__ == "__main__":
+  dev = ublox_i2c()
+#  setFlightMode()
+  response = ""
+
+  while True:
+    try:
+      ch = dev.read_byte()
+      if ch >= ' ' and ch <= 'z':
+        if ch == '$':
+          response = ch
+        else:
+          response += ch
+      elif ch == '\n':
+        parse_nmea(response)
+        response = ""
+#        print(response)
+      elif ch == '\r':
+        pass
+      else:
+        pass
+ 
+      elapsed = time.time() - lastFixTime
+      if elapsed > 1*60:
+          print ("timeout")
+          update_files()
+    except Exception as e:
+        print ("Exception: %s" % e)

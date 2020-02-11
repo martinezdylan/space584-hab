@@ -1,0 +1,9 @@
+{
+  "Status": "got gps fix", 
+  "fixTime": "16:09", 
+  "NavMode": "flight", 
+  "Lon": 34.868881, 
+  "Lat": 32.06368166666667, 
+  "Alt": "45.1", 
+  "accentRate": 0.7058835224981714
+}

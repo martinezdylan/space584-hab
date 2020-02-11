@@ -1,0 +1,26 @@
+#! /bin/sh
+# /etc/init.d/tracker
+#
+
+# Some things that run always
+touch /var/lock/tracker
+
+# Carry out specific functions when asked to by the system
+case "$1" in
+  start)
+    echo "Starting script tracker "
+    cd /home/pi/build
+    /home/pi/build/gps &
+    /home/pi/build/testloop.sh &
+    ;;
+  stop)
+    echo "Stopping script tracker"
+    ;;
+  *)
+    echo "Usage: /etc/init.d/tracker {start|stop}"
+    exit 1
+    ;;
+esac
+
+exit 0
+

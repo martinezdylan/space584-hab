@@ -1,0 +1,66 @@
+#!/usr/bin/python
+import datetime
+import io
+import time
+import numpy
+import picamera
+from PIL import Image, ImageDraw, ImageFont
+
+# Setup
+stream = io.BytesIO()
+camera = picamera.PiCamera()
+camera.resolution = (2592, 1944)
+
+#capture
+camera.capture(stream, format='jpeg')
+stream.seek(0)
+image = Image.open(stream)
+camera.close()
+
+#save to disk
+image.save("test.jpg", "JPEG")
+
+# resize
+sstvsize = (320, 256)
+hratio = image.size[1] / float(sstvsize[1])
+wsize = int(image.size[0]/ hratio)
+image = image.resize((wsize, sstvsize[1]), Image.NEAREST)
+dx = (image.size[0] - sstvsize[0] ) / 2
+image = image.crop((dx,0, sstvsize[0] + dx, sstvsize[1]))
+
+# logo
+logo = Image.open("bmc4.png")
+logo_pos = tuple(numpy.subtract(sstvsize, logo.size))
+logo_pos = tuple(numpy.subtract(logo_pos, (10, 10)))
+image.paste(logo, logo_pos, mask=logo)
+
+#backgrounds
+canvas1 = Image.new("RGBA", (120, 30), color=(0,0,0,85))
+canvas2 = Image.new("RGBA", (110, 70), color=(0,0,0,85))
+image.paste(canvas1, (190,10), mask=canvas1)
+image.paste(canvas2, (10,180), mask=canvas2)
+del canvas1
+del canvas2
+
+# text
+bigfont = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSansBold.ttf", 38) 
+draw = ImageDraw.Draw(image)
+draw.text((12, 12), "4X6UB",(0,0,0),font=bigfont)
+draw.text((10, 10), "4X6UB",(255,0,0),font=bigfont)
+del bigfont
+
+font = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 16) 
+draw.text((190,10), 'qsl via eqsl.cc or', font=font)
+draw.text((190,25), 'idoroseman.com', font=font)
+with open("gps.txt") as f:
+    gpsdata = f.readlines()
+y = 180
+for line in gpsdata:
+  draw.text((10, y), line.strip() ,font=font)
+  y += font.font.ascent + font.font.descent
+draw.text((10,y), datetime.datetime.now().strftime("%y-%m-%d %H:%M") ,font=font)
+y += font.font.ascent + font.font.descent
+del font
+del draw
+#save
+image.save("watermark.jpg", "JPEG")
