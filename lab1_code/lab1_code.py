@@ -1,56 +1,94 @@
+#/usr/bin/env python3
+"""
+
+.ABOUT
+
+KGB (Kewl Girls & Boys) | SPACE 584 | 02/11/2020 | High Altitude Balloon
+
+.VERSION CHANGES
+
+KGB (Kewl Girls & Boys) | SPACE 584 | 08/24/2018 | Created Project
+                                                 | 1) 
+.DESCRIPTION
+
+This will take in data from the KGB instruments and dynamically write to file.
+
+"""
+
 import time
+import csv
 import board
 import busio
+import threading
 import adafruit_am2320
 import adafruit_bno055
 import adafruit_bmp3xx
 
+## initialize I2C
 i2c = busio.I2C(board.SCL, board.SDA)
+
+## initialize components
 am2320 = adafruit_am2320.AM2320(i2c)
 bno055 = adafruit_bno055.BNO055(i2c)
 bmp388 = adafruit_bmp3xx.BMP3XX_I2C(i2c)
 
-f = open("lab1_output.txt","w+")
+## definition: creates main CSV file
+def createCSV():
+  ## intitialize file name
+  fileName = 'lab1_output.csv'
+  ## open unique file
+  with open(fileName, 'w', newline='') as file:
+    writer = csv.writer(file)
 
-while True:
+    ## create header
+    writer.writerow([
+      "am2320_humidity",
+      "am2320_temperature",
+      "bmp388_temperature",
+      "bmp388_pressure",
+      "bno055_accelerometer",
+      "bno055_eulerAngle",
+      "bno055_gravity",
+      "bno055_gyroscope",
+      "bno055_linearAcceleration",
+      "bno055_magnetometer",
+      "bno055_temperature",
+      "bno055_quaternion"
+    ])
 
-    f.write("Output from humidity sensor:")
-    f.write("Temperature: ", am2320.temperature)
-    f.write("Humidity: ", am2320.relative_humidity)
+  return fileName
 
-    f.write("\nOutput from IMU:")
-    f.write('Temperature: {} degrees C'.format(bno055.temperature))
-    f.write('Accelerometer (m/s^2): {}'.format(bno055.acceleration))
-    f.write('Magnetometer (microteslas): {}'.format(bno055.magnetic))
-    f.write('Gyroscope (rad/sec): {}'.format(bno055.gyro))
-    f.write('Euler angle: {}'.format(bno055.euler))
-    f.write('Quaternion: {}'.format(bno055.quaternion))
-    f.write('Linear acceleration (m/s^2): {}'.format(bno055.linear_acceleration))
-    f.write('Gravity (m/s^2): {}'.format(bno055.gravity))
+def writeCSV(fileName):
+  ## open file
+  with open(fileName, 'a', newline='') as file:
+    writer = csv.writer(file)
 
-    f.write("\nOutput from IMU:")
-    f.write("Pressure: ", bmp388.pressure)
-    f.write("Temperature: \n", bmp388.temperature)
+    ## write line
+    writer.writerow([
+      ## am2320 (Humidity Sensor)
+      am2320.relative_humidity,
+      am2320.temperature,
+      ## bmp388 (Barometric Pressure Sensor)
+      bmp388.temperature,
+      bmp388.pressure,
+      ## bno055 (IMU)
+      bno055.accelerometer,
+      bno055.eulerAngle,
+      bno055.gravity,
+      bno055.gyroscope,
+      bno055.linearAcceleration,
+      bno055.magnetometer,
+      bno055.temperature,
+      bno055.quaternion
+    ])
 
-    print("Output from humidity sensor:")
-    print("Temperature: ", am2320.temperature)
-    print("Humidity: ", am2320.relative_humidity)
+  ## sleep for 5 seconds
+  threading.Timer(5.0, writeCSV, [fileName]).start()
 
-    print("\nOutput from IMU:")
-    print('Temperature: {} degrees C'.format(bno055.temperature))
-    print('Accelerometer (m/s^2): {}'.format(bno055.acceleration))
-    print('Magnetometer (microteslas): {}'.format(bno055.magnetic))
-    print('Gyroscope (rad/sec): {}'.format(bno055.gyro))
-    print('Euler angle: {}'.format(bno055.euler))
-    print('Quaternion: {}'.format(bno055.quaternion))
-    print('Linear acceleration (m/s^2): {}'.format(bno055.linear_acceleration))
-    print('Gravity (m/s^2): {}'.format(bno055.gravity))
+  return None
 
-    print("\nOutput from IMU:")
-    print("Pressure: ", bmp388.pressure)
-    print("Temperature: \n", bmp388.temperature)
+## intitialize creation
+fileName = createCSV()
 
-    time.sleep(2)
-
-
-f.close()
+## loop: five second iteration to write csv
+writeCSV(fileName)
