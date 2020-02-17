@@ -20,63 +20,39 @@ mcp = MCP.MCP3008(spi, cs)
 # create an analog input channel on pin 0
 chan0 = AnalogIn(mcp, MCP.P0)
 
-print("Raw ADC Value: ", chan0.value)
-print("ADC Voltage: " + str(chan0.voltage) + "V")
-
-last_read = 0       # this keeps track of the last potentiometer value
-tolerance = 250     # to keep from being jittery we'll only change
-                    # volume when the pot has moved a significant amount
-                    # on a 16-bit ADC
-
+# conversion coefficients
 A = 0.001468
 B = 0.0002383
 C = 0.0000001007
 
-def remap_range(value, left_min, left_max, right_min, right_max):
-    # this remaps a value from original (left) range to new (right) range
-    # Figure out how 'wide' each range is
-    left_span = left_max - left_min
-    right_span = right_max - right_min
+# supply voltage
+Vin = 3.3
 
-    # Convert the left range into a 0-1 range (int)
-    valueScaled = int(value - left_min) / int(left_span)
-
-    # Convert the 0-1 range into a value in the right range.
-    return int(right_min + (valueScaled * right_span))
+# resistor in circuit
+R2 = 10e3
 
 while True:
-    # we'll assume that the pot didn't move
-    trim_pot_changed = False
+     
+    print("Raw ADC Value: ", chan0.value)
+    print("ADC Voltage: " + str(chan0.voltage) + " V")
 
-    # read the analog pin
-    trim_pot = chan0.value
+    Vout = chan0.voltage
+    
+    if Vout != 0:
+        
+        thermistor_R = R2 * (Vin/Vout - 1)
+        
+        print("Resistance from thermistor: ", thermistor_R)
 
-    # how much has it changed since the last read?
-    pot_adjust = abs(trim_pot - last_read)
+        # converting resistant/A/B/C to temp
+        temp = 1 / (A + B * math.log(thermistor_R) + C * pow(math.log(thermistor_R ), 3))
+        
+        temp = temp - 273 # may not want this to be automatically converted
+        
+        print("Temperature from thermistor: ", str(temp) + " C\n") # will need to make this write to a file at some point, but this is enough to show us it's working
 
-    if pot_adjust > tolerance:
-        trim_pot_changed = True
-
-    if trim_pot_changed:
-        # convert 16bit adc0 (0-65535) trim pot read into 0-100 volume level
-        set_volume = remap_range(trim_pot, 0, 65535, 0, 100)
-
-        # set OS volume playback volume
-        print("Volume = {volume}%" .format(volume = set_volume))
-        set_vol_cmd = "sudo amixer cset numid=1 -- {volume}% > /dev/null" \
-        .format(volume = set_volume)
-        os.system(set_vol_cmd)
-
-        # save the potentiometer reading for the next loop
-        last_read = trim_pot
-
-		temp = 1 / ( A + B * math.log(R) + C * pow(math.log(R), 3) ) #this is right for converting resistant/A/B/C to temp
-		temp = temp - 273 #may not want this to be automatically converted
-		print("Temperature from thermistor: ", temp) #will need to make this write to a file at some point, but this is enough to show us it's working
-
-    # hang out and do nothing for a half second
-    time.sleep(0.5)
-
+    # hang out and do nothing for a second
+    time.sleep(1)
 
 
 '''
@@ -93,7 +69,7 @@ input = GPIO.input(0)
 print(GPIO.input(0))
 
 #defined by the data sheet for the thermistor
-'''
+
 
 while True: #will need to edit how long this loop will run, may be able to manually cut it off when it lands. 
 	R = input / 0.0001  #resistance is voltage divided by current, maybe we can use power instead of current. 
@@ -102,3 +78,4 @@ while True: #will need to edit how long this loop will run, may be able to manua
 	print(temp) #will need to make this write to a file at some point, but this is enough to show us it's working
 
 #GPIO.cleanup() #clears the pin values
+'''
