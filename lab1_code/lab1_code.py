@@ -65,23 +65,24 @@ def createCSV():
 
     ## create header
     writer.writerow([
-      "timestamp",
-      "am2320_humidity",
-      "am2320_temperature",
-      "bmp388_temperature",
-      "bmp388_pressure",
-      "bno055_acceleration",
+      "timestamp_EPOCHms",
+      "am2320_humidity_%",
+      "am2320_temperature_C",
+      "bmp388_temperature_C",
+      "bmp388_pressure_hPa",
+      "bmp388_altitude_m",
+      "bno055_acceleration_m/s^2",
       "bno055_euler_angle",
-      "bno055_gravity",
+      "bno055_gravity_m/s^2",
       "bno055_gyroscope",
-      "bno055_linear_acceleration",
-      "bno055_magnetometer",
-      "bno055_temperature",
+      "bno055_linear_acceleration_m/s^2",
+      "bno055_magnetometer_mT",
+      "bno055_temperature_C",
       "bno055_quaternion",
       "mcp3008_raw_adc",
-      "mcp3008_adc_voltage",
-      "mcp3008_thermistor_resistance",
-      "mcp3008_thermistor_temperature"
+      "mcp3008_adc_voltage_V",
+      "mcp3008_thermistor_resistance_Ω",
+      "mcp3008_thermistor_temperature_C"
     ])
 
   return fileName
@@ -114,6 +115,7 @@ def writeCSV(fileName):
       ## bmp388 (Barometric Pressure Sensor)
       bmp388.temperature,
       bmp388.pressure,
+      bmp388.altitude,
       ## bno055 (IMU)
       bno055.acceleration,
       bno055.euler,
