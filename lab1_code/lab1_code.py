@@ -35,7 +35,7 @@ i2c = busio.I2C(board.SCL, board.SDA)
 
 ## initialize SPI bus && chip select
 spi = busio.SPI(clock=board.SCK, MISO=board.MISO, MOSI=board.MOSI)
-cs = digitalio.DigitalInOut(board.D22)
+cs = digitalio.DigitalInOut(board.D5)
 
 ## initialize components
 am2320 = adafruit_am2320.AM2320(i2c)
