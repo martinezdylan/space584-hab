@@ -47,13 +47,13 @@ mcp3008 = MCP.MCP3008(spi, cs)
 chan0 = AnalogIn(mcp3008, MCP.P0)
 
 ## conversion coefficients (thermistor)
-therm_a = 0.001468
-therm_b = 0.0002383
-therm_c = 0.0000001007
+therm_a = 0.001032
+therm_b = 0.0002387
+therm_c = 0.0000001580
 
 ## voltage & resistor (thermistor)
 therm_v_in = 3.3
-therm_r2 = 10e3
+therm_r1 = 10e3
 
 ## definition: creates main CSV file
 def createCSV():
@@ -98,7 +98,7 @@ def writeCSV(fileName):
 
     ## thermistor conversions
     if chan0.voltage != 0:
-        thermistor_r = therm_r2 * (therm_v_in/chan0.voltage - 1)
+        thermistor_r = therm_r1 * 1/(therm_v_in/chan0.voltage - 1)
         thermistor_temp = (1/(therm_a + therm_b * math.log(thermistor_r) + therm_c * pow(math.log(thermistor_r), 3))) - 273
     else:
         thermistor_r = None
