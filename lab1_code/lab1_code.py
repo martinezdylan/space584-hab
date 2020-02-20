@@ -57,7 +57,7 @@ therm_r1 = 10e3
 
 ## definition: creates main CSV file
 def createCSV():
-  ## intitialize file name
+  ## initialize file name
   fileName = 'lab1_output.csv'
   ## open unique file
   with open(fileName, 'w', newline='') as file:
@@ -137,7 +137,7 @@ def writeCSV(fileName):
 
   return None
 
-## intitialize creation
+## initialize creation
 fileName = createCSV()
 
 ## loop: five second iteration to write csv
