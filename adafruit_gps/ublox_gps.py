@@ -40,6 +40,8 @@ gps.send_command(b'PMTK220,1000')
 # Main loop runs forever printing data as it comes in
 timestamp = time.monotonic()
 while True:
+    # gps.udpate()
+
     data = gps.read(32)  # read up to 32 bytes
     # print(data)  # this is a bytearray type
  
@@ -52,3 +54,4 @@ while True:
         # every 5 seconds...
         gps.send_command(b'PMTK605')  # request firmware version
         timestamp = time.monotonic()
+

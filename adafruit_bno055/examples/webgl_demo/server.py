@@ -148,7 +148,13 @@ def save_calibration():
     # Save calibration data to disk.
     #
     # TODO: implement this
-    #
+    
+    with bno_changed:
+        data = bno.get_calibration()
+    # Write the calibration to disk.
+    with open(CALIBRATION_FILE, 'w') as cal_file:
+        json.dump(data, cal_file)
+    
     return 'OK'
 
 @app.route('/load_calibration', methods=['POST'])
@@ -157,6 +163,13 @@ def load_calibration():
     #
     # TODO: implement this
     #
+    
+    with open(CALIBRATION_FILE, 'r') as cal_file:
+        data = json.load(cal_file)
+    # Grab the lock on BNO sensor access to serial access to the sensor.
+    with bno_changed:
+        bno.set_calibration(data)
+    
     return 'OK'
 
 @app.route('/')
