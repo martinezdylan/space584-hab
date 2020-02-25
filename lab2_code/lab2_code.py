@@ -65,17 +65,17 @@ def writeCSV(fileName):
     gps.update()
 
     if not gps.has_fix:
-      print('Waiting for fix...')
+        print('Waiting for fix...')
     else:
-      print('Fixed...writing file')
-      ## write line
-      writer.writerow([
-        ## timestamp
-        timestamp,
-        ## coordinates (GPS)
-        '{0:.6f}'.format(gps.latitude),
-        '{0:.6f}'.format(gps.longitude)
-      ])
+        print('Fixed...writing file')
+        ## write line
+        writer.writerow([
+          ## timestamp
+          timestamp,
+          ## coordinates (GPS)
+          '{0:.6f}'.format(gps.latitude),
+          '{0:.6f}'.format(gps.longitude)
+        ])
 
 
   ## sleep for 5 seconds
