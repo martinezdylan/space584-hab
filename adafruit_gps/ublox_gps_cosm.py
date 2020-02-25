@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import board
 import busio
 import csv
@@ -15,6 +16,10 @@ gps = adafruit_gps.GPS_GtopI2C(i2c, address=66, debug=False)
 gps.send_command(b'PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0')
 
 gps.send_command(b'PMTK220,1000')
+
+## create timestamp
+now = datetime.now()
+timestamp = datetime.timestamp(now)
 
 ## initialize file name
 fileName = 'lab2_output.csv'
