@@ -35,8 +35,6 @@ gps.send_command(b'PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0')
 
 gps.send_command(b'PMTK220,1000')
 
-last_print = time.monotonic()
-
 ## definition: creates main CSV file
 def createCSV():
   ## initialize file name
@@ -66,20 +64,18 @@ def writeCSV(fileName):
     ## update gps
     gps.update()
 
-    current = time.monotonic()
-    if current - last_print >= 1.0:
-        last_print = current
-        if not gps.has_fix:
-            print('Waiting for fix...')
-        else:
-          ## write line
-          writer.writerow([
-            ## timestamp
-            timestamp,
-            ## coordinates (GPS)
-            '{0:.6f}'.format(gps.latitude),
-            '{0:.6f}'.format(gps.longitude)
-          ])
+    if not gps.has_fix:
+        print('Waiting for fix...')
+    else:
+      ## write line
+      writer.writerow([
+        ## timestamp
+        timestamp,
+        ## coordinates (GPS)
+        '{0:.6f}'.format(gps.latitude),
+        '{0:.6f}'.format(gps.longitude)
+      ])
+
 
   ## sleep for 5 seconds
   threading.Timer(5.0, writeCSV, [fileName]).start()
