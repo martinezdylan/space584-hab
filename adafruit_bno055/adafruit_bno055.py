@@ -324,9 +324,45 @@ class BNO055:
 
     @property
     def gravity(self):
-        """Returns the gravity vector, without acceleration in m/s.
+        """Returns the gravity vectACCEL_OFFSET_X_LSB_ADDRor, without acceleration in m/s.
         Returns an empty tuple of length 3 when this property has been disabled by the current mode.
         """
         if self.mode in [0x09, 0x0b, 0x0c]:
             return self._gravity
         return (None, None, None)
+    
+    @mode.getter
+    def get_calibration(self):
+        """Return the sensor's calibration data and return it as an array of
+        22 bytes. Can be saved and then reloaded with the set_calibration function
+        to quickly calibrate from a previously calculated set of calibration data.
+        """
+        last_mode = self.mode
+        # Switch to configuration mode, as mentioned in section 3.10.4 of datasheet.
+        self.CONFIG_MODE
+        # Read the 22 bytes of calibration data and convert it to a list (from
+        # a bytearray) so it's more easily serialized should the caller want to
+        # store it.
+        # cal_data = list(self._read_bytes(ACCEL_OFFSET_X_LSB_ADDR, 22))
+        cal_data = list(self.i2c_device.readList(_OFFSET_ACCEL_REGISTER, 22))
+        # Go back to normal operation mode.
+        self.last_mode
+        return cal_data
+
+    @mode.setter
+    def set_calibration(self, data):
+        """Set the sensor's calibration data using a list of 22 bytes that
+        represent the sensor offsets and calibration data.  This data should be
+        a value that was previously retrieved with get_calibration (and then
+        perhaps persisted to disk or other location until needed again).
+        """
+        last_mode = self.mode
+        # Check that 22 bytes were passed in with calibration data.
+        if data is None or len(data) != 22:
+            raise ValueError('Expected a list of 22 bytes for calibration data.')
+        # Switch to configuration mode, as mentioned in section 3.10.4 of datasheet.
+        self.CONFIG_MODE
+        # Set the 22 bytes of calibration data.
+        self._write_bytes(_OFFSET_ACCEL_REGISTER, data)
+        # Go back to normal operation mode.
+        self.last_mode
